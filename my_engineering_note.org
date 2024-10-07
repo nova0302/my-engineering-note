@@ -1,0 +1,590 @@
+* Sep
+** Sep 8
+*** Virtualbox
+    a. Additional package installation
+    #+begin_src shell
+      sudo apt update
+      sudo apt install -y build-essential
+      cd /media/nova0302/VBox_GAs_7.0.20/
+      sudo ./VBoxLinuxAdditions.run 
+      sudo shutdown now
+    #+end_src
+
+    b. shared folder
+    #+begin_src shell
+      sudo adduser $USER vboxsf
+      sudo reboot now
+    #+end_src
+
+*** Petalinux
+    - https://blog.csdn.net/weixin_45579342/article/details/129653460
+    #+begin_src shell
+      sudo apt install -y libinfo5
+      ./petalinux-v2022.2-10141622-installer.run -d ~/xilinx/petalinux/ -p aarch64
+      sudo dpkg-reconfigure dash
+      cd petalinux/
+      source ./settings.sh 
+    #+end_src
+
+*** linux basic
+    #+begin_src shell
+      tar xzvf aa.tar.gz
+    #+end_src
+
+** Sep 9
+*** Petalinux
+    a. required package for Petalinux build host
+    - https://adaptivesupport.amd.com/s/article/73296?language=en_US
+    b. Ultra96 Petalinux guide
+    - https://www.96boards.org/documentation/consumer/ultra96/ultra96-v1/build/peta-linux.md.html
+    c. Petalinux install guide from Naver
+    - https://blog.naver.com/chcbaram/222100441481
+
+      d. The first approach - both the state cache directory && the original AMD state cache directory in 
+      <plnx-proj-root>/build/conf/plnxtool.conf
+
+      #+begin_src shell
+	petalinux-create -t project -s /media/sf_fpga/Avnet/Ultra96/u96v2_sbc_base_2022_2.bsp
+	petalinux-create -t project -s ../u96v2_sbc_base_2022_2.bsp
+	petalinux-config --get-hw-description=top.xsa
+      #+end_src
+
+      e. /home/nova0302/xilinx/prj/u96v2_sbc_base_2022_2/project-spec/meta-user/conf/petalinuxbsp.conf
+      e. <plnx-prj-dir>/project-spec/meta-user/conf/petalinuxbsp.conf
+      #+begin_src makefile
+	DL_DIR = "/home/nova0302/xilinx/prj/ultra96_linux_system/build/downloads/"
+	SSTATE_DIR = "/home/nova0302/xilinx/prj/ultra96_linux_system/build/sstate-cache/"
+
+	DL_DIR     = "/tools/Xilinx/Petalinux/2023.2/downloads"
+	SSTATE_DIR = "/tools/Xilinx/Petalinux/sstate-cache_aarch64"
+
+      #+end_src
+
+      #+begin_src shell
+	petalinux-build -c avnet-image-minimal
+	sudo apt install -y libidn-dev
+      #+end_src
+** [#B] Sep 10
+*** Petalinux
+**** pmu-firmware do_configure ERROR
+     #+begin_src shell
+       petalinux-build -c device-tree -x cleansstate
+       petalinux-build -c device-tree 
+
+       petalinux-build -c fsbl-firmware -x cleanssate
+       petalinux-build -c fsbl-firmware
+
+       petalinux-build -c pmu-firmware -x cleanssate
+       petalinux-build -c pmu-firmware
+       petalinux-build -x mrproper
+     #+end_src
+**** login
+     - default user - petalinux
+**** fdisk
+     #+begin_src shell
+     >sudo fdisk -l
+     >sudo fdisk /dev/sdb
+     >d <- delete partion 2
+     >d <- delete partion 1
+     *** new dos partion ***
+     >n <- create new partion
+     >Enter <- primary partion
+     >Enter <- partion number[1]
+     >Enter <- start block
+     >+1024M <- partion size
+     >t <- type
+     >c <- dos partion
+     >a <- bootable dos partion
+
+     *** new linux partion ***
+     >n <- create new partion
+     >Enter <- primary partion
+     >Enter <- partion number[2]
+     >Enter <- start block
+     >Enter <- start block
+     >w
+
+     >sudo fdisk /dev/sdb
+     >sudo mkfs -t vfat -F 32 /dev/sdb1
+     >sudo mkfs -t ext4 /dev/sdb2
+     >sudo dd if=rootfs.ext4 of=/dev/sdb2 && sync
+     #+end_src
+**** copy boot files
+     #+begin_src shell
+       cd <prj-dir>/images/linux
+       cp BOOT.BIN /dev/sdb1
+       cp image.ub /dev/sdb1
+     #+end_src
+**** Flash rootfs partion
+     #+begin_src shell
+       sudo mount /dev/sdb1 /mnt/sdb1
+       sudo cp boot.scr /mnt/sdb1
+       sudo cp BOOT.BIN /mnt/sdb1
+       sudo cp image.ub /mnt/sdb1
+     #+end_src
+**** dts
+     - <project>/project-spec/meta-user/recipes-bsp/device-tree/files/
+
+** Sep 11
+*** Linux 
+    #+begin_src shell
+      ssh root@192.168.0.130
+      scp boo.scr root@192.168.0.30:/home/root
+    #+end_src
+
+*** VirtualBox disksize increase
+    - https://itsfoss.com/increase-disk-size-virtualbox/
+
+*** Petaliux
+**** Adding iperf3 package
+     1. add the following to <plx-proj-root>/project-spec/meta-user/conf/user-rootfsconfig
+	#+begin_src shell
+	CONFIG_iperf3
+	#+end_src
+     2. Run petalinux-config -c rootfs
+     3. Select user packages > iperf3. Enable it, save and exit.
+     4. Run petalinux-build
+
+**** How to SSH and SCP
+     - https://adaptivesupport.amd.com/s/article/75610?language=en_US
+
+**** sdk
+     - <prj_root>/images/linux/sdk.sh
+     #+begin_src shell
+       petalinux-build --sdk
+     #+end_src
+**** Avnet usb ethernet gadget
+     - https://community.element14.com/technologies/fpga-group/b/blog/posts/enabling-usb-gadget-ethernet-on-the-ultra96-v2
+      
+** Sep 12
+*** Petalinux
+    - device tree
+    #+begin_src device-tree
+    &axi_intc_0 {
+       status="disabled";
+    };
+    #+end_src
+
+    - petelinux-package
+    #+begin_src shell
+      petalinux-package --force --boot --u-boot --fsbl zynqmp_fsbl.elf --fpga system.bit --pmufw pmufw.elf
+    #+end_src
+
+    - Makefile
+    #+begin_src shell 
+      sudo umount /dev/sdb1
+      sudo umount /dev/sdb2
+
+      sudo mount /dev/sdb1  /mnt/sdb1
+      sudo mount /dev/sdb2  /mnt/sdb2
+
+      petalinux-package --force --boot --u-boot --fsbl zynqmp_fsbl.elf --fpga system.bit --pmufw pmufw.elf
+      sudo cp ./images/linux/BOOT.BIN /mnt/sdb1
+      sudo cp ./images/linux/boot.scr /mnt/sdb1
+      sudo cp ./images/linux/image.ub /mnt/sdb1
+      sudo dd if=rootfs.ext4 of=/dev/sdb2 && sync
+    #+end_src
+*** petalinux-config(file system type)
+    - Image Packaging Configuration ->
+    - Root filesystem type
+    - [x]EXT4 (SD/eMMC/SATA/USB)
+*** iperf3
+    #+begin_src shell
+    >sudo ifconfig enp0s 192.168.3.3
+
+    -- on the Linux host 
+    >ping 192.168.3.3 
+
+    -- on the Linux host
+    >iperf3 -s -i 2 -B 192.168.3.3 
+
+    -- on the Ultra96
+    >iperf3 -c 192.168.3.3 -i 2 -t 20 -B 192.168.3.1 
+    #+end_src
+   
+*** ultra96_linux_system/project-spec/meta-user/recipes-bsp/device-tree/files/system-uuser.dtsi
+    -  /include/ "system-conf.dtsi"
+    -  / {
+    -  	chosen {
+    -  		bootargs = "earlycon console=ttyPS0,115200 clk_ignore_unused root=/dev/mmcblk0p2 rw rootwait cma=512M";
+    -  	};
+    -  };
+*** gcc
+    - Filesystem Packages ->> misc ->
+      - packagegroup--core-buildessential
+
+** Sep 13
+*** Linux 
+**** resize sd card
+     #+begin_src shell
+     >scp -P 2222 file.txt vctech@vanguard0715.iptime.org:~/
+     #+end_src
+
+**** scp file copy
+     #+begin_src shell
+     >sudo dd if=rootfs.ext4 of=/dev/sdb2 && sudo resize2fs /dev/sdb2 &&  sync
+     >sudo resize2fs /dev/sdb2 && sync
+     #+end_src
+
+*** Petalinux
+**** USB2744
+     - petalinux-config -c kernel
+     - Devicce Drivers -> USB support -> USB Serial Conveerter support.
+     - Enable USSSSB Prolific 2303 Single Port Serial Driver((CONFIG_USB_SERIAL_PL2303))
+**** system-user.dtsi
+     #+begin_src c
+     /include/ "system-conf.dtsi"
+     / {
+     chosen {
+     bootargs = "earlycon console=ttyPS0,115200 clk_ignore_unused root=/dev/mmcblk0p2 rw rootwait cma=512M";
+     };
+     };
+     &usb0 {
+     status = "okay";
+     };
+     &usb1 {
+     status = "okay";
+     };
+     #+end_src
+** Sep 20
+*** To do
+*** Emacs 
+**** dired
+     - Edit current dired buffer: C-x C-q
+     - Apply and exit dired edit mode: C-c C-c
+**** helm-tram
+     ~/.ssh/conf
+*** Petalinux
+**** OpenAMP RPC  Demo
+     - https://adaptivesupport.amd.com/s/question/0D54U00006cqgAxSAI/petalinux-unable-to-generate-openamp-libmetal?language=en_UShttps://adaptivesupport.amd.com/s/question/0D54U00006cqgAxSAI/petalinux-unable-to-generate-openamp-libmetal?language=en_UShttps://adaptivesupport.amd.com/s/question/0D54U00006cqgAxSAI/petalinux-unable-to-generate-openamp-libmetal?language=en_US 
+     #+begin_src shell
+     wget http://mirrors.kernel.org/ubuntu/pool/main/libi/libidn/libidn11_1.33-2.2ubuntu2_amd64.deb
+     sudo apt install ./libidn11_1.33-2.2ubuntu2_amd64.deb
+     #+end_src
+**** wic
+     - https://community.element14.com/products/devtools/avnetboardscommunity/avnetboard-forums/f/minized-hardware-design/39676/petalinux-build-error-no-kickstart-files-from-wks_files-were-found
+     - petalinux-build -c avnet-image-full
+*** Innovus
+    - https://eecs.wsu.edu/~ee434/Labs/
+*** cpio error
+    <plnx-proj--root>/project-spec/meta-user/conf/petalinuxbsp.conf
+    #+begin_src shell
+
+    IMAGE_FSTYPES:remove         = "cpio cpio.gz cpio.bz2 cpio.xz cpio.lzma cpio.lz4 cpio.gz.u-boot"
+    IMAGE_FSTYPES_DEBUGFS:remove = "cpio cpio.gz cpio.bz2 cpio.xz cpio.lzma cpio.lz4 cpio.gz.u-boot"
+   
+    #+end_src
+   
+** Sep 23
+*** Petalinux
+**** auto login
+     - https://docs.amd.com/r/en-US/ug1144-petalinux-tools-reference-guide/PetaLinux-Auto-Login
+       1. change to the root directory of ypu Petalinux project
+       2. Run "petalinux-config -c rootfs"
+       3. Select Image Features > [*] debug-tweaks
+       4. Select Image Features > [*] serial-autologin-root.
+       5. Save the confguration and exit.
+       6. Run petalinux-build
+*** Linux Basic
+**** chown
+     #+begin_src shell
+     sudo chown $USER:$USER ../top.xsa
+     #+end_src
+**** fdisk    
+     #+begin_src shell
+     fdisk /dev/sdb <<EOF
+     d
+ d
+ n
+
+
+ +1024M
+ t
+ c
+ a
+ n
+
+
+
+ w
+ EOF
+    
+     #+end_src
+
+** Sep 24
+*** Petalinux
+    1. Makefile
+    #+begin_src makefile
+ IMG_DIR=./images/linux
+
+ pkg_b:
+	 petalinux-package --boot \
+		 --fsbl $(IMG_DIR)/zynqmp_fsbl.elf \
+		 --pmufw $(IMG_DIR)/pmufw.elf \
+		 --fpga $(IMG_DIR)/system.bit \
+		 --u-boot \
+		 --force
+ pkg_w:
+	 petalinux-package --wic \
+		 --wks project-spec/meta-user/wic/petalinux-image-minimal.wks \
+                 --bootfiles "BOOT.BIN boot.scr Image system.dtb" \
+		 --wic-extra-args "-c xz"
+ bld:
+	 petalinux-build
+ cfg:
+	 petalinux-config
+ cfg_r:
+	 petalinux-config -c rootfs
+
+    #+end_src
+
+    2. FPGA Manager
+    #+begin_src shell
+    >petalinux-config
+    #+end_src
+   
+
+
+  * CAUTION: This file is automatically generated by Xilinx.
+  * Version: XSCT 
+  * Today is: Tue Sep 24 06:46:57 2024
+  */
+
+
+ / {
+	 amba_pl: amba_pl@0 {
+		 #address-cells = <2>;
+		 #size-cells = <2>;
+		 compatible = "simple-bus";
+		 ranges ;
+		 axi_intc_0: interrupt-controller@a0020000 {
+			 #interrupt-cells = <2>;
+			 clock-names = "s_axi_aclk";
+			 clocks = <&zynqmp_clk 71>;
+			 compatible = "xlnx,axi-intc-4.1", "xlnx,xps-intc-1.00.a";
+			 interrupt-controller ;
+			 reg = <0x0 0xa0020000 0x0 0x10000>;
+			 xlnx,kind-of-intr = <0x0>;
+			 xlnx,num-intr-inputs = <0x2>;
+		 };
+		 axi_bram_ctrl_0: axi_bram_ctrl@a0000000 {
+			 clock-names = "s_axi_aclk";
+			 clocks = <&zynqmp_clk 71>;
+			 compatible = "xlnx,axi-bram-ctrl-4.1";
+			 reg = <0x0 0xa0000000 0x0 0x2000>;
+			 xlnx,bram-addr-width = <0xb>;
+			 xlnx,bram-inst-mode = "EXTERNAL";
+			 xlnx,ecc = <0x0>;
+			 xlnx,ecc-onoff-reset-value = <0x0>;
+			 xlnx,ecc-type = <0x0>;
+			 xlnx,fault-inject = <0x0>;
+			 xlnx,memory-depth = <0x800>;
+			 xlnx,rd-cmd-optimization = <0x0>;
+			 xlnx,read-latency = <0x1>;
+			 xlnx,s-axi-ctrl-addr-width = <0x20>;
+			 xlnx,s-axi-ctrl-data-width = <0x20>;
+			 xlnx,s-axi-id-width = <0x1>;
+			 xlnx,s-axi-supports-narrow-burst = <0x1>;
+			 xlnx,single-port-bram = <0x1>;
+		 };
+		 axi_gpio_0: gpio@a0010000 {
+			 #gpio-cells = <2>;
+			 #interrupt-cells = <2>;
+			 clock-names = "s_axi_aclk";
+			 clocks = <&zynqmp_clk 71>;
+			 compatible = "xlnx,axi-gpio-2.0", "xlnx,xps-gpio-1.00.a";
+			 gpio-controller ;
+			 interrupt-controller ;
+			 interrupt-names = "ip2intc_irpt";
+			 interrupt-parent = <&axi_intc_0>;
+			 interrupts = <0 2>;
+			 reg = <0x0 0xa0010000 0x0 0x10000>;
+			 xlnx,all-inputs = <0x0>;
+			 xlnx,all-inputs-2 = <0x0>;
+			 xlnx,all-outputs = <0x1>;
+			 xlnx,all-outputs-2 = <0x0>;
+			 xlnx,dout-default = <0x00000000>;
+			 xlnx,dout-default-2 = <0x00000000>;
+			 xlnx,gpio-width = <0x2>;
+			 xlnx,gpio2-width = <0x20>;
+			 xlnx,interrupt-present = <0x1>;
+			 xlnx,is-dual = <0x0>;
+			 xlnx,tri-default = <0xFFFFFFFF>;
+			 xlnx,tri-default-2 = <0xFFFFFFFF>;
+		 };
+		 axi_gpio_1: gpio@a0030000 {
+			 #gpio-cells = <2>;
+			 #interrupt-cells = <2>;
+			 clock-names = "s_axi_aclk";
+			 clocks = <&zynqmp_clk 71>;
+			 compatible = "xlnx,axi-gpio-2.0", "xlnx,xps-gpio-1.00.a";
+			 gpio-controller ;
+			 interrupt-controller ;
+			 interrupt-names = "ip2intc_irpt";
+			 interrupt-parent = <&axi_intc_0>;
+			 interrupts = <1 2>;
+			 reg = <0x0 0xa0030000 0x0 0x10000>;
+			 xlnx,all-inputs = <0x0>;
+			 xlnx,all-inputs-2 = <0x0>;
+			 xlnx,all-outputs = <0x0>;
+			 xlnx,all-outputs-2 = <0x0>;
+			 xlnx,dout-default = <0x00000000>;
+			 xlnx,dout-default-2 = <0x00000000>;
+			 xlnx,gpio-width = <0x20>;
+			 xlnx,gpio2-width = <0x20>;
+			 xlnx,interrupt-present = <0x1>;
+			 xlnx,is-dual = <0x0>;
+			 xlnx,tri-default = <0xFFFFFFFF>;
+			 xlnx,tri-default-2 = <0xFFFFFFFF>;
+		 };
+	 };
+ };
+** Sep 25
+*** petalinux
+**** wic
+     #+begin_src shell
+ part /boot --source bootimg-partition --ondisk mmcblk0 --fstype=vfat --label boot --align 4 --fixed-size 100 --active
+ part /     --source rootfs            --ondisk mmcblk0 --fstype=ext4 --label root --align 4 --extra-space 1G
+     #+end_src
+
+**** ntfs
+     1. Open kernel configuration
+     #+begin_src shell
+ >petalinux-config -c kernel
+     #+end_src
+     2. Navigate to Filesystem Support
+	- File systems ---> DOS/FAT/EXFAT/FT Filesystems
+**** usb ethernet gadget
+     1. Check Kernel Modules
+     #+begin_src shell
+  >lsmod | grep g_ether
+  or
+  >sudo modprobe g_ether
+     #+end_src
+**** usb ethernet gadget
+     1. petalinux-config -c kernel
+     2. Devide Drivers > USB Gadget Support > USB Gadget precomposed configurations > <*>Ether Gadget (with CDC Ethernet support)
+**** linux ip command
+** Sep 26
+*** petalinux
+    - [error message] : unable to connect to bitbake server
+      #+begin_src shell
+    >cd build
+    >rm bitbake.lock
+    #+end_src
+*** USB Ethernet Gadget
+    - https://ryanclaire.blogspot.com/2020/04/embedded-linux-usb-ethernet-gadget.html
+ #+CAPTION: This is the caption for the next figure link (or table)
+ #+NAME:   fig:SED-HR4049
+ [[./images/p1.jpg]]
+ [[./images/p2.jpg]]
+ [[./images/p3.jpg]]
+ [[./images/p4.jpg]]
+ [[./images/p5.jpg]]
+** Sep 27
+*** Linux Programming
+**** Accessing BRAM
+     - https://xilinx-wiki.atlassian.net/wiki/spaces/A/pages/18842412/Accessing+BRAM+In+Linux
+***** The /dev/mem Device Driver
+     - 
+***** UIO Device Driver
+     - This method is the preferred approach for accessing registers ratehr than /dev/mem
+     - good for regisetrs but not for a memory with regards to performance
+** Sep 30
+*** python
+**** excel to sxv   
+***** 1. install python packages 
+      #+begin_src shell
+	>pip instal pandas
+	>pip instal openpyxl
+      #+end_src
+
+***** 2. pyton code
+      #+begin_src python
+
+	import pandas as pd
+
+	# Load the Excel file
+	excel_file = 'test.xlsx'
+	df = pd.read_excel(excel_file)
+
+	# Save to CSV
+	csv_file = 'test.csv'
+	df.to_csv(csv_file, index=False)
+
+      #+end_src
+
+**** python code to convert excel to bin
+     #+begin_src python
+       import pandas as pd
+       import csv
+       import sys
+
+       #excel_file= input('Enter the name of the execel file to convert to bin: ')
+
+       excel_file = sys.argv[1]
+       csv_file = excel_file.split('.')[0] + '.csv'
+       bin_file = excel_file.split('.')[0] + '.bin'
+
+       df = pd.read_excel(excel_file, header=None)
+       df.to_csv(csv_file, index=False, header=False)
+
+       with open(csv_file, 'r') as f, open(bin_file, 'wb') as b:
+	   b.write(bytearray(int(x) for line in f for x in line.split(',')))
+     #+end_src
+    
+
+* Oct
+** Oct 2
+*** emacs org
+    - Alt Shift Right : shift all sub contents
+*** linux comparing two files
+    1. code
+    #+begin_src shell
+      cmp file1.bin file2.bin
+    #+end_src
+    2. gets nothing if the same!
+
+*** python tkinter tcp socketprogram 
+     - https://blog.everdu.com/9
+
+*** Makefile tutorial
+    - https://modoocode.com/311
+*** RISC-V related
+    - https://0o0deng.tistory.com/entry/%EC%BB%B4%ED%93%A8%ED%84%B0%EA%B5%AC%EC%A1%B0-CH4-RISC-V-RISC-V-Instruction-1
+
+*** Misc
+    - None date has yet been set for the *submission* of aplications.
+    - the act of giving something for a decision to be made by others,
+    - or a documentation formally given in this way.
+
+      
+** Oct 4
+*** RV
+    - https://github.com/ultraembedded/biriscv?tab=readme-ov-file
+    #+begin_src shell
+      git clone --recursive https://github.com/ultraembedded/biriscv.git
+      sudo apt install -y libelf-dev
+      dpkg -s libelf-dev
+    #+end_src
+
+** .bashrc
+   - alias make="make -j$(nproc)"
+
+* Oct 7
+** Linux
+#+begin_src shell
+  export PATH=$PATH:/snap/bin
+#+end_src
+
+** RV
+   1. https://twilco.github.io/riscv-from-scratch/2019/04/27/riscv-from-scratch-2.html
+   2. https://github.com/popovicu/risc-v-bare-metal-fake-bios/blob/main/Makefile
+
+*** linker script
+*** c runtime
+*** calls into main
+*** picorv32
+   1. https://github.com/YosysHQ/picorv32
+   2. 
+
